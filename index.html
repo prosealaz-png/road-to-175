@@ -70,6 +70,11 @@ li.task .min{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums
 li.task.done label{color:var(--muted);text-decoration:line-through}
 li.task.skip label{color:var(--muted);text-decoration:line-through;font-style:italic}
 li.task.skip .min::after{content:" · skipped"}
+li.task .side{display:flex;flex-direction:column;align-items:flex-end;gap:4px}
+.helpbtn{width:24px;height:24px;border-radius:50%;border:1px solid var(--line);background:var(--surface);color:var(--muted);font:700 13px var(--display);cursor:pointer;padding:0;line-height:1}
+.helpbtn[aria-expanded="true"]{background:var(--accent);border-color:var(--accent);color:#fff}
+.help{grid-column:2/4;font-size:14px;color:var(--fg);background:var(--accent-soft);border-radius:10px;padding:10px 12px;line-height:1.45}
+.help b{display:block;font-family:var(--display);font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--accent);margin-bottom:2px}
 .week-goal{border-left:3px solid var(--accent);padding-left:12px;display:grid;gap:4px}
 .phase{display:grid;gap:4px;padding:14px;border-radius:12px;background:var(--accent-soft)}
 .phase .range{font-size:13px;color:var(--muted)}
@@ -119,6 +124,7 @@ summary{cursor:pointer;font:700 14px var(--display)}
     <div class="stat"><span id="s-status" class="pill good">On track</span></div>
   </div>
   <div class="bar"><i id="s-bar" style="width:0%"></i></div>
+  <div class="small" id="s-sync">Sync is off. Turn it on in Setup so progress follows you to any device.</div>
 </div>
 
 <div class="tabs" role="tablist">
@@ -141,9 +147,16 @@ summary{cursor:pointer;font:700 14px var(--display)}
     <p class="small">Changing the test date only changes the countdown. The schedule itself runs Oct 7, 2026 to Jan 14, 2027.</p>
   </div>
   <div class="card">
+    <h2>Sync across devices</h2>
+    <p class="small">Pick a passphrase (a few words you will remember). Progress is saved to the cloud under that passphrase, so a cleared browser or a new phone never loses anything. Type the same passphrase on another device and it all shows up there too. Only you know the passphrase; the app never sends it anywhere, just a scrambled fingerprint of it.</p>
+    <label class="field">Passphrase<input type="text" id="in-pass" autocomplete="off" placeholder="e.g. blue couch january"></label>
+    <div class="row"><button class="btn primary" id="btn-sync-on">Turn on sync</button><button class="btn" id="btn-sync-off" hidden>Turn off sync</button></div>
+    <p class="small" id="sync-detail"></p>
+  </div>
+  <div class="card">
     <h2>Backup your progress</h2>
     <p class="small"><b>Put it on your home screen:</b> on iPhone open this in Safari, tap Share, then “Add to Home Screen”. On Android, Chrome menu → “Add to Home screen”. It then opens like an app and works offline.</p>
-    <p class="small">Progress saves on this device only. Copy this code every week or so and paste it into Notes. If the browser forgets, paste it back here and tap Restore.</p>
+    <p class="small">A manual backup, in case you would rather not use sync. Copy this code every week or so and paste it into Notes. If the browser forgets, paste it back here and tap Restore.</p>
     <textarea id="backup" readonly></textarea>
     <div class="row"><button class="btn" id="btn-copy">Copy code</button><button class="btn" id="btn-refresh">Refresh code</button></div>
     <textarea id="restore" placeholder="Paste a backup code here"></textarea>
@@ -160,6 +173,20 @@ summary{cursor:pointer;font:700 14px var(--display)}
         <li><b>Hard questions are worth one point.</b> Same as easy ones. Spending 3 minutes to earn 1 point while 5 points sit unanswered is the trade you are currently making.</li>
         <li><b>Blind review.</b> After every timed set, re-answer every flagged or uncertain question untimed before seeing answers. The gap between timed and untimed is your timing problem, measured.</li>
         <li><b>Review beats volume.</b> One section reviewed properly teaches more than three sections rushed.</li>
+      </ul>
+    </details>
+    <details><summary>Glossary (the words this plan uses)</summary>
+      <ul class="rules">
+        <li><b>LR / RC.</b> Logical Reasoning (short arguments, one question each) and Reading Comprehension (four passages). The test is two scored LR sections, one scored RC, and one unscored “experimental” section you cannot identify.</li>
+        <li><b>Section.</b> 35 minutes, 24 to 28 questions. All tasks that say “1 LR section” mean one of these, timed.</li>
+        <li><b>Practice test (PT).</b> Four sections back to back with one 10-minute break. Always a fresh Demon test, always timed strictly.</li>
+        <li><b>Blind review.</b> Re-answering flagged or uncertain questions untimed before seeing any answers.</li>
+        <li><b>Skip rule.</b> 75 seconds with no answer: pick a letter, flag, move on.</li>
+        <li><b>Checkpoints.</b> Clock targets inside a section (LR: Q10 by 12 min, Q18 by 23; RC: 8.5 min per passage).</li>
+        <li><b>Blanks.</b> Questions left unanswered when time ran out. The number this whole plan exists to make zero.</li>
+        <li><b>Trap list.</b> Your running list of the specific ways you get fooled. Becomes your five-item index card in January.</li>
+        <li><b>Weakest type.</b> The question type with your highest miss rate in Demon’s stats.</li>
+        <li><b>The Loophole / RC Bible.</b> Your two books: Ellen Cassidy’s The Loophole in LSAT Logical Reasoning, and PowerScore’s Reading Comprehension Bible.</li>
       </ul>
     </details>
   </div>
@@ -304,9 +331,118 @@ for (let d = new Date(START); d <= END; d = addDays(d,1)) {
 const ALL = DAYS.flatMap(x=>x.tasks);
 
 // ---------- state ----------
-let S = {done:{}, skip:{}, scores:[], testDate:'2027-01-14', name:''};
+const SYNC_URL = 'https://road175-sync.REPLACE_SUBDOMAIN.workers.dev';
+let S = {done:{}, skip:{}, scores:[], testDate:'2027-01-14', name:'', updatedAt:0};
 try { const raw = localStorage.getItem('road175'); if (raw) S = Object.assign(S, JSON.parse(raw)); } catch(e){}
-function save(){ try { localStorage.setItem('road175', JSON.stringify(S)); } catch(e){} }
+function save(){ S.updatedAt = Date.now(); try { localStorage.setItem('road175', JSON.stringify(S)); } catch(e){} schedulePush(); }
+
+// ---------- sync ----------
+let syncKey = null; try { syncKey = localStorage.getItem('road175-sync') || null; } catch(e){}
+let lastSync = 0, syncState = syncKey ? 'idle' : 'off', pushTimer = null;
+async function sha256(text){ const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text.trim().toLowerCase())); return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join(''); }
+function mergeState(a, b){ // union of progress, newest wins for settings
+  const newer = (a.updatedAt||0) >= (b.updatedAt||0) ? a : b;
+  const out = {done:Object.assign({}, a.done, b.done), skip:{}, scores:[], testDate:newer.testDate, name:newer.name, updatedAt:Math.max(a.updatedAt||0, b.updatedAt||0)};
+  Object.keys(Object.assign({}, a.skip, b.skip)).forEach(k=>{ if (!out.done[k]) out.skip[k]=true; });
+  const seen = new Set();
+  [...(a.scores||[]), ...(b.scores||[])].forEach(x=>{ const id=x.d+'|'+x.s; if(!seen.has(id)){ seen.add(id); out.scores.push(x); } });
+  out.scores.sort((x,y)=>x.d<y.d?-1:1);
+  return out;
+}
+function sameState(a,b){ return JSON.stringify([a.done,a.skip,a.scores,a.testDate,a.name]) === JSON.stringify([b.done,b.skip,b.scores,b.testDate,b.name]); }
+function setSync(state, detail){ syncState = state; const el=document.getElementById('s-sync'); if(!el) return;
+  const ago = lastSync ? Math.round((Date.now()-lastSync)/60000) : null;
+  const when = ago===null ? '' : ago<1 ? 'just now' : ago<60 ? ago+' min ago' : Math.round(ago/60)+' h ago';
+  el.textContent = state==='off' ? 'Sync is off. Turn it on in Setup so progress follows you to any device.'
+    : state==='saving' ? 'Saving to the cloud…' : state==='offline' ? 'Offline. Saved on this phone, will sync when back online.'
+    : state==='error' ? 'Cloud sync hit a snag. Saved on this phone, retrying.' : 'Synced ' + (when || '');
+  const d=document.getElementById('sync-detail'); if (d) d.textContent = syncKey ? 'Sync is on for this device.' + (detail?' '+detail:'') : (detail||'');
+  const on=document.getElementById('btn-sync-on'), off=document.getElementById('btn-sync-off'); if(on&&off){ on.hidden=!!syncKey; off.hidden=!syncKey; }
+}
+async function pull(){ if(!syncKey) return;
+  try { const r = await fetch(SYNC_URL+'/v1/'+syncKey, {cache:'no-store'});
+    if (r.status===404) { await push(); return; }
+    if (!r.ok) throw 0;
+    const remote = (await r.json()).state || {};
+    const merged = mergeState(S, remote);
+    const localChanged = !sameState(merged, S), remoteChanged = !sameState(merged, remote);
+    if (localChanged) { S = Object.assign({done:{},skip:{},scores:[],testDate:'2027-01-14',name:''}, merged); try{localStorage.setItem('road175',JSON.stringify(S));}catch(e){} render(); }
+    lastSync = Date.now(); setSync('idle');
+    if (remoteChanged) await push();
+  } catch(e){ setSync(navigator.onLine===false?'offline':'error'); }
+}
+async function push(){ if(!syncKey) return; setSync('saving');
+  try { const r = await fetch(SYNC_URL+'/v1/'+syncKey, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({state:S, updatedAt:S.updatedAt||Date.now()})});
+    if (!r.ok) throw 0; lastSync = Date.now(); setSync('idle'); }
+  catch(e){ setSync(navigator.onLine===false?'offline':'error'); clearTimeout(pushTimer); pushTimer=setTimeout(push, 15000); }
+}
+function schedulePush(){ if(!syncKey) return; clearTimeout(pushTimer); pushTimer=setTimeout(push, 1500); }
+window.addEventListener('online', ()=>pull());
+document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='visible') pull(); });
+setInterval(()=>{ if(syncState==='idle') setSync('idle'); }, 60000);
+
+// ---------- task explanations ----------
+const HELP = [
+  [/read this whole plan/i, 'Why', 'Ten minutes of orientation saves you from wondering, every single day, whether you are doing the right thing. You are. It is written down.'],
+  [/confirm subscription/i, 'Why', 'Demon explanations are the review engine for this whole plan. Make sure they show after every question. A daily goal keeps the app nagging you so this page does not have to.'],
+  [/register for the january lsat/i, 'Why', 'Registering makes it real and locks the deadline. Also check the actual date: the January window is mid-month and your countdown runs off whatever you enter in Setup.'],
+  [/diagnostic practice test/i, 'Why', 'This is the baseline, not a verdict. Four sections timed strictly, including the ugly part where you run out of time. We need the real number of blanks so we can watch it fall.'],
+  [/write down blanks per section and where the clock/i, 'Why', 'Noting the clock at Q10 / Q15 / Q20 shows where the time actually goes. Most people lose it on 3 or 4 questions, not spread evenly. Those are the ones the skip rule is for.'],
+  [/blind review/i, 'How', 'Before looking at any answers, re-do every question you flagged or felt unsure about with no clock. Then check. Questions you got right untimed but wrong timed are a pacing problem, not a knowledge problem. That gap is what this plan shrinks.'],
+  [/log (the )?score|log it\b|log score/i, 'Why', 'The Scores tab is the real progress bar. Boxes checked are effort; practice-test scores are results. Always log blanks too so you can see them going to zero.'],
+  [/loophole: intro \+ translation/i, 'What', 'Translation is turning sloppy English into precise claims. It is the base skill for everything else in the book. Read with a pen and do every exercise.'],
+  [/loophole: translation \+ argument parts/i, 'What', 'Find the conclusion, find the premises, ignore the fluff. Nearly every LR mistake starts with mislabeling one of these. Practice on real questions right after reading.'],
+  [/powerful vs provable/i, 'What', 'Two different jobs: some questions want the strongest claim you can make (Powerful), others want only what is proven (Provable). Knowing which mode you are in kills a lot of attractive wrong answers.'],
+  [/loophole: clir/i, 'What', 'CLIR is the book’s core move: read the Conclusion, find the Loophole (the way the argument could be wrong), then the Implication and the Reasoning. Must Be True questions are the Provable mode at its strictest.'],
+  [/most strongly supported \+ flaw/i, 'What', 'MSS is Must Be True with the volume turned down slightly. Flaw questions are the single most common LR type: learn the named flaws cold, since they repeat forever.'],
+  [/strengthen \+ weaken/i, 'What', 'These are the Loophole in action: the right answer either plugs the hole or widens it. The trap answers are usually true-sounding but about something else.'],
+  [/necessary \+ sufficient assumption/i, 'What', 'Necessary Assumption: what must be true for the argument to work (test by negating). Sufficient Assumption: what would guarantee the conclusion. Different tests, often confused, both learnable.'],
+  [/rc bible: intro/i, 'What', 'The approach chapter sets how you read: actively, for structure, not for memorization. Everything later builds on this.'],
+  [/viewstamp/i, 'What', 'VIEWSTAMP is the checklist of what to track while reading: Viewpoints, Structure, Tone, Arguments, Main Point. You will not consciously do all of it forever, but learning it makes structure visible.'],
+  [/rc bible: question types/i, 'What', 'Each RC question type has a predictable right-answer shape. Prephrasing means deciding what the answer should say before reading the choices, so the choices cannot talk you into something.'],
+  [/comparative reading/i, 'What', 'Dual passages ask how two authors relate. The science passages are where most people panic; the chapter shows you do not need to understand the science, only the argument about it.'],
+  [/15 lr questions untimed on the type/i, 'How', 'Untimed means it: no clock at all. The point is to run the method from the chapter slowly and correctly until it feels natural. Read the explanation for every question, including ones you got right.'],
+  [/2 rc passages untimed\. write the main point/i, 'How', 'Writing the main point in one sentence before the questions forces real reading. If you cannot write it, you did not read it, and the questions will punish that.'],
+  [/1 lr section, 45-minute budget/i, 'How', 'Ten extra minutes over the real limit so you can finish while still doing the method properly. Glance at the clock at Q10 and Q20 and write the times down; we shrink this budget later.'],
+  [/review: for every miss, write why the right answer is right/i, 'How', 'Both halves matter. Why yours is wrong teaches you the trap; why the right one is right teaches you the pattern. One sentence each, in a notebook or note on your phone.'],
+  [/10 lr questions on your weakest type/i, 'How', 'Weakest type means highest miss rate in Demon’s stats, not the one that feels hardest. Small, untimed, deliberate.'],
+  [/1 rc section, 45-minute budget/i, 'How', 'Four passages in 45 minutes is about 11 minutes each. Check the clock at the end of each passage. If one runs long, that is the passage you should have skipped to last.'],
+  [/update your trap list/i, 'What', 'A running list of the specific ways you get fooled: “picked the answer that was true but irrelevant,” “reversed the conditional,” “chose extreme wording.” Reread it before every timed section. By January it becomes your index card.'],
+  [/2 timed sections back to back/i, 'How', 'No break between them, just like the real test. Timed at 40 (not 35) in this phase so you finish. Blind review both before checking anything.'],
+  [/final full practice test/i, 'Why', 'Last full-length rehearsal. Treat it like the real thing: same start time, same breakfast. After this, no more full tests; the taper is about arriving fresh.'],
+  [/full practice test/i, 'How', 'Four sections, strict 35 minutes each, one 10-minute break after section 2, no phone. Start at the time your real test starts. Use a fresh Demon test, not retakes. Log score and blanks right after.'],
+  [/weekly reflection/i, 'How', 'Three lines only: what slowed you, what clicked, one focus for next week. It takes 5 minutes and it is how you steer the plan instead of just following it.'],
+  [/rest day|rest\. |^rest/i, 'Why', 'Rest is part of the plan, not a break from it. Timing skill consolidates when you sleep. Doing extra on a rest day usually costs more than it gains.'],
+  [/skip rule \(75 sec/i, 'How', 'Seventy-five seconds with no answer: pick a letter, flag it, move on. No exceptions, even when you feel close. You come back only if time remains. This is the single habit that converts blanks into points.'],
+  [/review every flagged \+ missed|review flagged \+ missed/i, 'How', 'Flagged questions are the ones the skip rule rescued you from. Review them untimed: could you get it with 60 more seconds? If yes, that is a point you can earn with slightly better pacing elsewhere.'],
+  [/reread the chapter for your weakest type/i, 'Why', 'Second reads land differently once you have missed real questions on that type. Thirty minutes, with your misses next to you.'],
+  [/1 rc section at \d+ min\. passage checkpoint/i, 'How', 'Divide the budget by four and check the clock after each passage. Behind by two minutes? Speed up the reading of the next passage, not the questions.'],
+  [/speed day: 25 lr questions in 30 minutes/i, 'Why', 'Deliberately too fast. It teaches your brain what finishing feels like and proves the world does not end when you guess. Accuracy will dip; that is expected.'],
+  [/hit the checkpoints \(q10 by 12/i, 'How', 'Q10 by 12 minutes, Q18 by 23, done by 33, last two minutes for flags. If you are behind at a checkpoint, the next hard-looking question gets skipped immediately.'],
+  [/one chapter on your weakest rc question type/i, 'Why', 'Targeted reread. Pick the RC question type you miss most in Demon and reread only that.'],
+  [/light: 15 mixed lr questions in 18 minutes/i, 'Why', 'Friday is light on purpose so Saturday’s test gets a fresh brain. Still timed, still finishing.'],
+  [/2 rc passages in 17 minutes/i, 'How', 'Two passages at real pace (8.5 minutes each). Short, sharp, done.'],
+  [/full blind review of (saturday|tuesday)’s test/i, 'How', 'Every flagged or missed question untimed first, then explanations. Two hours is not too long: in test mode, review is where the points come from, not the test itself.'],
+  [/10 questions on your single top miss type/i, 'Why', 'By December you should drill one thing at a time. Whatever type you missed most on the last test, and nothing else.'],
+  [/4 sections \(add an experimental\)/i, 'Why', 'The real LSAT has an unscored fourth section you cannot identify. Practicing with four builds the stamina so section 4 does not become your weak one on test day.'],
+  [/\b2 timed sections back to back \(lr \+ rc\) at 35/i, 'How', 'Real timing now. Seventy minutes straight, then review.'],
+  [/light: 1 lr section at 35 min/i, 'Why', 'One section to stay sharp before Saturday’s test. Nothing more.'],
+  [/read through your trap list once/i, 'Why', 'Keeps your personal traps fresh so they are the first thing you think of when a tempting answer shows up.'],
+  [/review the final test|write your 5 personal traps on one index card/i, 'How', 'Pick the five traps that cost you the most points across all your tests. Five, not twenty. Read the card every morning until the test.'],
+  [/logistics check/i, 'How', 'Confirm the test date and time on your LSAC account, what ID you need, where you are testing (or that your room and computer pass the remote check), and when check-in opens. Do this now so test week has zero admin.'],
+  [/no new material from here on/i, 'Why', 'New material in the last week only adds doubt. From here you are sharpening what you already have.'],
+  [/bed at test-week bedtime|phone off by 9pm/i, 'Why', 'Your test-day start time is set. Shifting sleep now means you are awake and sharp at that hour, not just upright.'],
+  [/easy warm-up: one lr section/i, 'Why', 'Confidence day. Pick a section that goes well. You are practicing the feeling of finishing cleanly.'],
+  [/pack everything/i, 'How', 'ID, admission ticket, water, snacks for the break, charger if remote, and your index card to read before you walk in (not during).'],
+  [/10 easy lr questions\. that is all/i, 'Why', 'Just enough to keep the engine warm. Any more and you risk a bad set rattling you the night before.'],
+  [/test day/i, 'How', 'Eat, do 5 easy questions to wake up the LSAT part of your brain, read the index card, go. Skip rule on every question. You have done this fifteen times.'],
+  [/thanksgiving|christmas|new year/i, 'Why', 'Holidays are scheduled, not a failure of discipline. A tiny set keeps the streak alive where it makes sense; a full day off is the plan where it does not.'],
+  [/pick your weekday study window/i, 'Why', 'A fixed time beats willpower. Choose the same two-hour block each weekday and put it in your calendar like a class.'],
+  [/loophole: /i, 'What', 'Read actively with a pen, do the exercises, then go straight to the Demon drill on the same type so the idea sticks to real questions.'],
+  [/rc bible: /i, 'What', 'Read for the method, not the trivia. Apply it immediately on the next RC task.'],
+  [/review misses( only)?/i, 'How', 'For each miss: why is the right answer right, why was yours tempting. One sentence each.'],
+];
+function explain(t){ for (const [re, label, text] of HELP) if (re.test(t)) return [label, text]; return ['Why', 'This keeps the week’s goal moving: see the goal at the top of the Week tab. If it feels wrong for today, do the timed piece and skip the rest.']; }
 
 // ---------- motivation ----------
 const LOVE = ['Koen loves you','Koen loves you (and your pacing)','Koen loves you. Also, nice.','Koen loves you more than LSAC loves tricky answer choices','Koen loves you. That’s one more than yesterday.','Koen loves you. The 175 is getting closer.','Koen loves you. Keep moving, skip rule style.','Koen loves you. The clock fears you now.'];
@@ -360,7 +496,11 @@ function taskList(tasks, dayKey){
     cb.addEventListener('change', ()=>toggle(x, cb.checked, dayKey));
     const lab = document.createElement('label'); lab.htmlFor=cb.id; lab.textContent=x.t;
     const m = document.createElement('span'); m.className='min'; m.textContent = x.m?x.m+' min':'';
-    li.append(cb,lab,m); ul.append(li);
+    const side = document.createElement('div'); side.className='side';
+    const hb = document.createElement('button'); hb.className='helpbtn'; hb.type='button'; hb.textContent='?'; hb.setAttribute('aria-label','Why this task'); hb.setAttribute('aria-expanded','false');
+    const hp = document.createElement('div'); hp.className='help'; hp.hidden=true; const ex = explain(x.t); hp.innerHTML = '<b>'+ex[0]+'</b>'+ex[1];
+    hb.addEventListener('click', ()=>{ const open = hp.hidden; hp.hidden=!open; hb.setAttribute('aria-expanded', String(open)); });
+    side.append(m,hb); li.append(cb,lab,side,hp); ul.append(li);
   });
   return ul;
 }
@@ -416,7 +556,7 @@ function renderWeek(){
   const v = document.getElementById('view-week'); v.innerHTML='';
   if (weekView===null) weekView = Math.min(14, Math.max(0, weekOf(today0())));
   const nav = document.createElement('div'); nav.className='nav';
-  nav.innerHTML = `<button class="btn" id="wk-prev" ${weekView<=0?'disabled':''}>← Week ${weekView-1}</button><span class="eyebrow">Week ${weekView}</span><button class="btn" id="wk-next" ${weekView>=14?'disabled':''}>Week ${weekView+1} →</button>`;
+  nav.innerHTML = `<button class="btn" id="wk-prev" ${weekView<=0?'disabled':''}>${weekView<=0?'← Start':'← Week '+(weekView-1)}</button><span class="eyebrow">Week ${weekView}</span><button class="btn" id="wk-next" ${weekView>=14?'disabled':''}>${weekView>=14?'Test →':'Week '+(weekView+1)+' →'}</button>`;
   v.append(nav);
   nav.querySelector('#wk-prev').addEventListener('click',()=>{weekView--;renderWeek();});
   nav.querySelector('#wk-next').addEventListener('click',()=>{weekView++;renderWeek();});
@@ -537,7 +677,17 @@ document.getElementById('btn-restore').addEventListener('click',()=>{
     S=Object.assign({done:{},skip:{},scores:[],testDate:'2027-01-14',name:''},obj); save(); inName.value=S.name; inTest.value=S.testDate; render(); bigMoment('Restored. Koen loves you.'); }
   catch(e){ toast('That code did not work. Check you pasted the whole thing.'); }
 });
-render();
+const inPass=document.getElementById('in-pass');
+document.getElementById('btn-sync-on').addEventListener('click', async ()=>{
+  const p=inPass.value.trim(); if (p.length<4){ toast('Pick a passphrase with at least 4 characters'); return; }
+  syncKey = await sha256(p); try{localStorage.setItem('road175-sync',syncKey);}catch(e){}
+  inPass.value=''; setSync('saving','Pulling anything already saved under this passphrase…'); await pull();
+  bigMoment('Sync is on. Your progress is safe. Koen loves you.');
+});
+document.getElementById('btn-sync-off').addEventListener('click', ()=>{
+  syncKey=null; try{localStorage.removeItem('road175-sync');}catch(e){} lastSync=0; setSync('off','Sync is off. Progress stays on this device only.'); toast('Sync turned off');
+});
+render(); setSync(syncState); pull();
 })();
 </script>
 
