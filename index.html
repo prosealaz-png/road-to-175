@@ -1,0 +1,548 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#3447C7">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Road to 175">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui}img{max-width:100%}[hidden]{display:none!important}</style>
+</head>
+<body>
+<title>Road to 175</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&display=swap">
+<style>
+/* Layout: one narrow column (phone-first), sticky summary bar, tabbed views (Today / Week / Month / Scores). */
+:root{
+  --bg:#F4F5FA; --surface:#FFFFFF; --fg:#171A2B; --muted:#5E6378; --line:#D9DCE8;
+  --accent:#3447C7; --accent-soft:#E6E9FA; --joy:#FF6A5B; --good:#1F8A5B; --warn:#C7791A; --crit:#C4392E;
+  --display:"Bricolage Grotesque","Atkinson Hyperlegible",system-ui,sans-serif;
+  --body:"Atkinson Hyperlegible",system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#12141D; --surface:#1B1E2B; --fg:#ECEEF8; --muted:#A3A8BF; --line:#2E3345;
+  --accent:#8C9BFF; --accent-soft:#242A48; --joy:#FF7F72; --good:#4FC58C; --warn:#E8A24D; --crit:#F06A5F; color-scheme:dark }}
+:root[data-theme="dark"]{
+  --bg:#12141D; --surface:#1B1E2B; --fg:#ECEEF8; --muted:#A3A8BF; --line:#2E3345;
+  --accent:#8C9BFF; --accent-soft:#242A48; --joy:#FF7F72; --good:#4FC58C; --warn:#E8A24D; --crit:#F06A5F; color-scheme:dark }
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--body);font-size:16px;line-height:1.5;margin:0}
+.wrap{max-width:720px;margin:0 auto;padding-inline:16px;padding-block:20px 60px}
+h1,h2,h3{font-family:var(--display);line-height:1.1;margin:0;text-wrap:balance}
+h1{font-size:clamp(34px,8vw,52px);font-weight:800;letter-spacing:-.02em}
+h2{font-size:22px;font-weight:700}
+h3{font-size:17px;font-weight:700}
+p{margin:0}
+.eyebrow{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:700}
+.sub{color:var(--muted);max-width:60ch}
+header{display:grid;gap:8px;margin-bottom:18px}
+.summary{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px 14px;display:grid;gap:10px;margin-bottom:16px;box-shadow:0 6px 24px rgba(20,24,60,.06)}
+.stats{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:baseline}
+.stat{display:flex;flex-direction:column;min-width:0}
+.stat b{font-family:var(--display);font-size:24px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1}
+.stat span{font-size:12px;color:var(--muted)}
+.bar{height:8px;background:var(--accent-soft);border-radius:99px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--accent);border-radius:99px;transition:width .4s}
+.pill{display:inline-flex;align-items:center;gap:6px;border-radius:99px;padding:3px 10px;font-size:12px;font-weight:700;letter-spacing:.02em}
+.pill.good{background:color-mix(in srgb,var(--good) 15%,transparent);color:var(--good)}
+.pill.warn{background:color-mix(in srgb,var(--warn) 15%,transparent);color:var(--warn)}
+.pill.crit{background:color-mix(in srgb,var(--crit) 15%,transparent);color:var(--crit)}
+.tabs{display:flex;gap:4px;background:var(--accent-soft);padding:4px;border-radius:12px;margin-bottom:16px}
+.tabs button{flex:1;border:0;background:transparent;color:var(--fg);font:700 14px var(--display);padding:9px 4px;border-radius:9px;cursor:pointer}
+.tabs button[aria-selected="true"]{background:var(--surface);box-shadow:0 1px 4px rgba(0,0,0,.08)}
+.tabs button:focus-visible,button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+section.view{display:grid;gap:16px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px;display:grid;gap:10px}
+.day-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap}
+.day-head .date{font-family:var(--display);font-weight:700;font-size:17px}
+.day-head .meta{font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
+.day-head.today .date{color:var(--accent)}
+ul.tasks{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+li.task{display:grid;grid-template-columns:28px 1fr auto;gap:10px;align-items:start;padding:8px 6px;border-radius:10px}
+li.task:hover{background:var(--accent-soft)}
+li.task input{width:22px;height:22px;margin:2px 0 0;accent-color:var(--accent);cursor:pointer}
+li.task label{cursor:pointer;min-width:0}
+li.task .min{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap;padding-top:4px}
+li.task.done label{color:var(--muted);text-decoration:line-through}
+li.task.skip label{color:var(--muted);text-decoration:line-through;font-style:italic}
+li.task.skip .min::after{content:" · skipped"}
+.week-goal{border-left:3px solid var(--accent);padding-left:12px;display:grid;gap:4px}
+.phase{display:grid;gap:4px;padding:14px;border-radius:12px;background:var(--accent-soft)}
+.phase .range{font-size:13px;color:var(--muted)}
+.nav{display:flex;gap:8px;align-items:center;justify-content:space-between}
+.btn{border:1px solid var(--line);background:var(--surface);color:var(--fg);font:700 14px var(--display);padding:9px 14px;border-radius:10px;cursor:pointer}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.joy{background:var(--joy);border-color:var(--joy);color:#fff}
+.btn:disabled{opacity:.45;cursor:default}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+input[type="date"],input[type="number"],input[type="text"],textarea{font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:8px 10px;min-width:0}
+textarea{width:100%;font-family:ui-monospace,Menlo,monospace;font-size:12px;min-height:64px}
+label.field{display:grid;gap:4px;font-size:13px;color:var(--muted)}
+table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
+th,td{text-align:left;padding:8px 6px;border-bottom:1px solid var(--line);font-size:14px}
+th{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+td.n{text-align:right}
+.hit{color:var(--good);font-weight:700}.miss{color:var(--warn);font-weight:700}
+.catchup{border:2px solid var(--joy);background:var(--surface);border-radius:14px;padding:16px;display:grid;gap:10px}
+.catchup h2{color:var(--joy)}
+.catchup ol{margin:0;padding-left:20px;display:grid;gap:6px}
+.quote{font-family:var(--display);font-size:19px;font-weight:500;line-height:1.3;border-left:3px solid var(--joy);padding-left:12px}
+.toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translateX(-50%) translateY(20px);background:var(--fg);color:var(--bg);padding:12px 18px;border-radius:99px;font:700 15px var(--display);opacity:0;pointer-events:none;transition:all .25s;z-index:20;white-space:nowrap;max-width:calc(100vw - 32px);overflow:hidden;text-overflow:ellipsis}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.big{position:fixed;inset:0;display:grid;place-items:center;z-index:15;pointer-events:none}
+.big div{background:var(--surface);border:2px solid var(--joy);padding:22px 28px;border-radius:18px;text-align:center;font-family:var(--display);font-size:24px;font-weight:800;box-shadow:0 20px 60px rgba(0,0,0,.25);animation:pop .5s ease-out}
+@keyframes pop{from{transform:scale(.6);opacity:0}to{transform:scale(1);opacity:1}}
+details{border-top:1px solid var(--line);padding-top:10px}
+summary{cursor:pointer;font:700 14px var(--display)}
+.rules{display:grid;gap:6px;padding-left:18px;margin:0}
+.small{font-size:13px;color:var(--muted)}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+
+<div class="wrap">
+<header>
+  <span class="eyebrow">January LSAT · 160 → mid/high 170s</span>
+  <h1>Road to 175</h1>
+  <p class="sub" id="greeting">A day-by-day plan built around your real problem: the clock. Check things off, get confetti, get told Koen loves you. Repeat until January.</p>
+</header>
+
+<div class="summary">
+  <div class="stats">
+    <div class="stat"><b id="s-days">–</b><span>days to test</span></div>
+    <div class="stat"><b id="s-pct">0%</b><span>of plan done</span></div>
+    <div class="stat"><b id="s-streak">0</b><span>day streak</span></div>
+    <div class="stat"><b id="s-pts">0</b><span>practice tests taken</span></div>
+    <div class="stat"><span id="s-status" class="pill good">On track</span></div>
+  </div>
+  <div class="bar"><i id="s-bar" style="width:0%"></i></div>
+</div>
+
+<div class="tabs" role="tablist">
+  <button role="tab" aria-selected="true" data-tab="today">Today</button>
+  <button role="tab" aria-selected="false" data-tab="week">Week</button>
+  <button role="tab" aria-selected="false" data-tab="month">Months</button>
+  <button role="tab" aria-selected="false" data-tab="scores">Scores</button>
+  <button role="tab" aria-selected="false" data-tab="setup">Setup</button>
+</div>
+
+<section class="view" id="view-today"></section>
+<section class="view" id="view-week" hidden></section>
+<section class="view" id="view-month" hidden></section>
+<section class="view" id="view-scores" hidden></section>
+<section class="view" id="view-setup" hidden>
+  <div class="card">
+    <h2>Setup</h2>
+    <label class="field">Your name (for the greeting)<input type="text" id="in-name" placeholder="e.g. Future 175"></label>
+    <label class="field">Test date (confirm on LSAC.org, the January 2027 window is mid-January)<input type="date" id="in-test"></label>
+    <p class="small">Changing the test date only changes the countdown. The schedule itself runs Oct 7, 2026 to Jan 14, 2027.</p>
+  </div>
+  <div class="card">
+    <h2>Backup your progress</h2>
+    <p class="small"><b>Put it on your home screen:</b> on iPhone open this in Safari, tap Share, then “Add to Home Screen”. On Android, Chrome menu → “Add to Home screen”. It then opens like an app and works offline.</p>
+    <p class="small">Progress saves on this device only. Copy this code every week or so and paste it into Notes. If the browser forgets, paste it back here and tap Restore.</p>
+    <textarea id="backup" readonly></textarea>
+    <div class="row"><button class="btn" id="btn-copy">Copy code</button><button class="btn" id="btn-refresh">Refresh code</button></div>
+    <textarea id="restore" placeholder="Paste a backup code here"></textarea>
+    <div class="row"><button class="btn primary" id="btn-restore">Restore from code</button></div>
+  </div>
+  <div class="card">
+    <h2>The plan in one paragraph</h2>
+    <p>You leave 5 to 7 questions blank per section. On the current LSAT (two scored Logical Reasoning sections and one Reading Comprehension, 35 minutes each) that is roughly 15 to 20 points of raw score you never touch. Finishing sections, even with a few guesses, is the single biggest lever you have. So October builds the method (The Loophole, the RC Bible, untimed accuracy on LSAT Demon). November is a timing ladder: section budgets shrink from 40 minutes to 35, with a hard skip rule. December is test mode: two full practice tests a week with proper review. January is a taper. Fifteen practice tests in total.</p>
+    <details><summary>The pacing rules (memorize these)</summary>
+      <ul class="rules">
+        <li><b>Skip rule.</b> 75 seconds with no answer: pick a letter, flag it, move on. Come back only if time remains. Never leave a bubble empty.</li>
+        <li><b>LR checkpoints.</b> Question 10 by 12 min, question 18 by 23 min, done by 33 min, last 2 min for flags.</li>
+        <li><b>RC checkpoints.</b> About 8.5 minutes per passage. Passage 2 starts by 9 min, passage 3 by 18, passage 4 by 26.</li>
+        <li><b>Hard questions are worth one point.</b> Same as easy ones. Spending 3 minutes to earn 1 point while 5 points sit unanswered is the trade you are currently making.</li>
+        <li><b>Blind review.</b> After every timed set, re-answer every flagged or uncertain question untimed before seeing answers. The gap between timed and untimed is your timing problem, measured.</li>
+        <li><b>Review beats volume.</b> One section reviewed properly teaches more than three sections rushed.</li>
+      </ul>
+    </details>
+  </div>
+</section>
+</div>
+
+<div class="toast" id="toast">Koen loves you</div>
+<div class="big" id="big" hidden><div id="big-text"></div></div>
+
+<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.4/dist/confetti.browser.min.js"></script>
+<script>
+(function(){
+// ---------- dates ----------
+const START = new Date(2026,9,7);               // Wed Oct 7 2026 (Week 0)
+const W1 = new Date(2026,9,12);                 // Mon Oct 12 2026 (Week 1)
+const END = new Date(2027,0,14);                // Thu Jan 14 2027 (test)
+const DOW = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const key = d => d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+const addDays = (d,n) => { const x=new Date(d); x.setDate(x.getDate()+n); return x; };
+const fmt = d => DOW[(d.getDay()+6)%7]+' '+MON[d.getMonth()]+' '+d.getDate();
+const today0 = () => { const t=new Date(); t.setHours(0,0,0,0); return t; };
+function weekOf(d){ if (d < W1) return 0; return Math.floor((d - W1)/864e5/7)+1; }
+function dowOf(d){ return (d.getDay()+6)%7; }
+
+// ---------- plan content ----------
+const PHASES = [
+  {n:1, name:'Foundations', range:'Oct 7 – Nov 1 (Weeks 0–3)', goal:'Learn the method cold. Accuracy first, with loose 40–45 minute section budgets so you can feel what finishing is like. Diagnostic + one full practice test. Target by Nov 1: 162–164, blanks down to 3 per section.'},
+  {n:2, name:'Timing ladder', range:'Nov 2 – Dec 6 (Weeks 4–8)', goal:'Section budgets shrink one notch a week: 40 → 38 → 36 → 35 → 35. The skip rule becomes automatic. One full practice test every Saturday. Target by Dec 6: 167–169, zero blanks.'},
+  {n:3, name:'Test mode', range:'Dec 7 – Jan 3 (Weeks 9–12)', goal:'Two full 4-section tests a week (Tuesday + Saturday), each with a real blind review. Drills only on your top miss type. Target by Jan 3: 171–174.'},
+  {n:4, name:'Taper', range:'Jan 4 – Jan 14 (Weeks 13–14)', goal:'One final test, then volume drops by half. Sleep on the test-day schedule. Walk in rested with an index card of your five personal traps. Target: 173–176.'}
+];
+const WEEK_GOALS = {
+  0:'Set up, take the diagnostic, start the two books. Nothing timed except the diagnostic.',
+  1:'Translation + argument parts (Loophole). VIEWSTAMP and passage structure (RC Bible). First feel for 40-min sections.',
+  2:'Loophole: CLIR, Must Be True, Most Strongly Supported, Flaw. First full practice test Saturday. Target 161–163.',
+  3:'Loophole: Strengthen/Weaken, Necessary + Sufficient Assumption. RC Bible: comparative reading. Blanks under 3 per section.',
+  4:'Ladder step 1: 40-minute sections with the skip rule on every single question. Practice test Saturday, target 164.',
+  5:'Ladder step 2: 38-minute sections. Hit the LR checkpoints (Q10 by 12 min). Practice test Saturday, target 165.',
+  6:'Ladder step 3: 36-minute sections. RC passage checkpoints (8.5 min each). Practice test Saturday, target 166.',
+  7:'Ladder step 4: real 35-minute sections. Thanksgiving week, lighter Thursday. Practice test Saturday, target 167.',
+  8:'Hold 35 minutes. Zero blanks on every section this week. Practice test Saturday, target 168–169.',
+  9:'Test mode begins: Tuesday + Saturday full tests with a 4th experimental section. Target 170.',
+  10:'Two tests. Drill only your top miss type. Target 171–172.',
+  11:'Christmas week: two tests still, but the 25th is a full rest day. Target 172–173.',
+  12:'New Year week: two tests, New Year’s Day off. Target 173+.',
+  13:'Taper: final full test Tuesday, then half volume. Lock sleep to test-day timing. Confirm logistics.',
+  14:'Test week. Short warm-ups only. Thursday: go get it.'
+};
+const MONTHS = [
+  {name:'October 2026', goal:'Method installed. Diagnostic taken, two books mostly read, untimed accuracy above 90% on LR drills, one full practice test logged. Blanks per section: 3 or fewer.', target:'162–164'},
+  {name:'November 2026', goal:'The clock stops being the enemy. Timing ladder from 40 to 35 minutes, five practice tests, skip rule automatic. Blanks per section: zero.', target:'167–169'},
+  {name:'December 2026', goal:'Test mode. Eight full tests with real blind reviews, 4 sections each. Consistency: no section below -4.', target:'171–174'},
+  {name:'January 2027', goal:'Taper, sleep, index card, test. Then a nap you have earned.', target:'173–176'}
+];
+const PT_TARGETS = [['Oct 8 diagnostic',160],['Oct 24',162],['Nov 7',164],['Nov 14',165],['Nov 21',166],['Nov 28',167],['Dec 5',168],['Dec 8',169],['Dec 12',170],['Dec 15',171],['Dec 19',171],['Dec 22',172],['Dec 26',172],['Dec 29',173],['Jan 2',173],['Jan 5 final',174]];
+
+const T = (t,m) => ({t,m});
+const LADDER = {4:40,5:38,6:36,7:35,8:35};
+const LOOP_A = {1:'Loophole: Translation + Argument Parts (premise vs conclusion)',2:'Loophole: CLIR (Conclusion, Loophole, Implication, Reasoning) + Must Be True',3:'Loophole: Strengthen + Weaken'};
+const LOOP_B = {1:'Loophole: Powerful vs Provable',2:'Loophole: Most Strongly Supported + Flaw',3:'Loophole: Necessary + Sufficient Assumption'};
+const RCB = {1:'RC Bible: VIEWSTAMP + passage structure',2:'RC Bible: question types + prephrasing the answer',3:'RC Bible: comparative reading + hard science passages'};
+
+function tasksFor(d){
+  const k = key(d), w = weekOf(d), dow = dowOf(d);
+  if (d < START || d > END) return [];
+  // fixed special days
+  const special = {
+    '2026-10-07':[T('Read this whole plan once, top to bottom. Tap the Setup tab and read the pacing rules.',15), T('LSAT Demon: confirm subscription, turn on explanations, set a daily goal.',15), T('Register for the January LSAT on LSAC.org and put the date in Setup.',20)],
+    '2026-10-08':[T('Diagnostic practice test on Demon: 4 sections, timed strictly, no pausing.',180), T('Write down blanks per section and where the clock was at Q10 / Q15 / Q20.',10)],
+    '2026-10-09':[T('Blind review the diagnostic: re-answer every flagged question untimed, then check.',90), T('Log the score in the Scores tab.',2)],
+    '2026-10-10':[T('Loophole: intro + Translation chapter.',60), T('RC Bible: intro + the approach chapter.',45)],
+    '2026-10-11':[T('Rest day. Pick your weekday study window and block it in your calendar.',10)],
+    '2026-11-26':[T('Thanksgiving. 10 LR questions on your phone, then go eat.',15)],
+    '2026-12-25':[T('Christmas. Zero LSAT today. Koen loves you.',0)],
+    '2026-12-31':[T('New Year’s Eve: one LR section at 35 min, review misses, done by noon.',70)],
+    '2027-01-01':[T('New Year’s Day. Rest. You are two weeks out and ahead of where you started by a mile.',0)],
+    '2027-01-11':[T('Easy warm-up: one LR section at 35 min. Confidence, not grind.',35), T('Read your index card of five traps.',5)],
+    '2027-01-12':[T('One RC section at 35 min, review misses only.',55), T('Pack everything: ID, admission ticket, water, snacks, charger, quiet room sorted.',20)],
+    '2027-01-13':[T('10 easy LR questions. That is all.',15), T('Phone off by 9pm. Bed at test-week bedtime.',0)],
+    '2027-01-14':[T('TEST DAY. Breakfast, 5 easy LR questions as a warm-up, then go get your 175. Koen loves you.',0)]
+  };
+  if (special[k]) return special[k];
+
+  if (w >= 1 && w <= 3) { // Foundations
+    const sat2 = w === 2;
+    return [
+      [T(LOOP_A[w]+'.',60), T('Demon: 15 LR questions untimed on the type you just read. Review every one with the explanation.',60)],
+      [T(RCB[w]+'.',45), T('Demon: 2 RC passages untimed. Write the main point in one sentence before touching the questions.',60)],
+      [T('Demon: 1 LR section, 45-minute budget. Note the clock at Q10 and Q20.',45), T('Review: for every miss, write why the right answer is right AND why yours is wrong.',45)],
+      [T(LOOP_B[w]+'.',45), T('Demon: 10 LR questions on your weakest type, untimed.',45)],
+      [T('Demon: 1 RC section, 45-minute budget. Passage checkpoints at 11 min each.',45), T('Review misses.',30), T('Update your trap list (the ways you get fooled).',15)],
+      sat2 ? [T('Full practice test, 4 sections, timed strictly, start at 8:30am.',180), T('Log the score and blanks per section.',5)]
+           : [T('2 timed sections back to back (LR + RC), 40 minutes each.',80), T('Blind review both before checking answers.',60)],
+      sat2 ? [T('Blind review the practice test: every flagged question untimed first.',90), T('Weekly reflection, 3 lines: what slowed you, what clicked, next week’s one focus.',10)]
+           : [T('Rest. Weekly reflection, 3 lines: what slowed you, what clicked, next week’s one focus.',10)]
+    ][dow];
+  }
+  if (w >= 4 && w <= 8) { // Timing ladder
+    const m = LADDER[w];
+    return [
+      [T(`Demon: 1 LR section at ${m} min with the skip rule (75 sec, pick, flag, move).`,m), T('Review every flagged + missed question.',45), T('Loophole: reread the chapter for your weakest type.',30)],
+      [T(`Demon: 1 RC section at ${m} min. Passage checkpoint: ${(m/4).toFixed(1)} min each.`,m), T('Review: for each miss, find the line in the passage that proves the right answer.',40)],
+      [T('Speed day: 25 LR questions in 30 minutes. Finish no matter what.',30), T('Review misses only.',30)],
+      [T(`Demon: 1 LR section at ${m} min. Hit the checkpoints (Q10 by 12, Q18 by 23).`,m), T('Review flagged + missed.',40), T('RC Bible: one chapter on your weakest RC question type.',30)],
+      [T('Light: 15 mixed LR questions in 18 minutes.',20), T('2 RC passages in 17 minutes.',20), T('Update your trap list.',10)],
+      [T('Full practice test, 4 sections, strict time, start 8:30am like test day.',180), T('Log score + blanks per section.',5)],
+      [T('Blind review the practice test, flagged questions first.',120), T('Weekly reflection, 3 lines.',10)]
+    ][dow];
+  }
+  if (w >= 9 && w <= 12) { // Test mode
+    return [
+      [T('Full blind review of Saturday’s test. Log it.',120)],
+      [T('Full practice test, 4 sections (add an experimental), strict time.',180), T('Log score + blanks.',5)],
+      [T('Full blind review of Tuesday’s test.',120), T('Demon: 10 questions on your single top miss type.',20)],
+      [T('2 timed sections back to back (LR + RC) at 35 min.',70), T('Review flagged + missed.',45)],
+      [T('Light: 1 LR section at 35 min.',35), T('Review misses.',30)],
+      [T('Full practice test at test-day time, 4 sections.',180), T('Log score + blanks.',5)],
+      [T('Rest. Weekly reflection, 3 lines.',10), T('Read through your trap list once.',10)]
+    ][dow];
+  }
+  if (w === 13) { // Taper
+    return [
+      [T('Blind review Saturday’s test. Log it.',120)],
+      [T('FINAL full practice test, 4 sections, test-day timing.',180), T('Log score.',5)],
+      [T('Review the final test.',60), T('Write your 5 personal traps on one index card. This is your test-day cheat sheet (in your head).',30)],
+      [T('1 LR + 1 RC section at 35 min.',70), T('Review misses only.',30)],
+      [T('15 LR questions + 2 RC passages, timed.',40), T('Logistics check: LSAC account, ID, test location or remote setup, check-in time.',30)],
+      [T('2 sections at your test-day start time.',70), T('Review misses only. No new material from here on.',20)],
+      [T('Rest. Walk. Bed at test-week bedtime.',0)]
+    ][dow];
+  }
+  return [];
+}
+
+// all days
+const DAYS = [];
+for (let d = new Date(START); d <= END; d = addDays(d,1)) {
+  const ts = tasksFor(d).map((t,i)=>({id:key(d)+'#'+i, ...t}));
+  DAYS.push({date:new Date(d), k:key(d), week:weekOf(d), tasks:ts});
+}
+const ALL = DAYS.flatMap(x=>x.tasks);
+
+// ---------- state ----------
+let S = {done:{}, skip:{}, scores:[], testDate:'2027-01-14', name:''};
+try { const raw = localStorage.getItem('road175'); if (raw) S = Object.assign(S, JSON.parse(raw)); } catch(e){}
+function save(){ try { localStorage.setItem('road175', JSON.stringify(S)); } catch(e){} }
+
+// ---------- motivation ----------
+const LOVE = ['Koen loves you','Koen loves you (and your pacing)','Koen loves you. Also, nice.','Koen loves you more than LSAC loves tricky answer choices','Koen loves you. That’s one more than yesterday.','Koen loves you. The 175 is getting closer.','Koen loves you. Keep moving, skip rule style.','Koen loves you. The clock fears you now.'];
+const PEP = [
+  'A study plan is a map, not a contract. Being off the route does not mean you are lost. It means you re-route from where you actually are.',
+  'Scores move on practice tests and honest review. Everything else on this list is support. Miss the support, keep the tests, and you are still on the road.',
+  'You started at 160. That is already above most people who take this test. The gap to 175 is a timing problem, and timing problems are the fixable kind.',
+  'Three days off does not erase three weeks on. Skill does not reset to zero. It just gets slightly dusty. One section wipes the dust off.',
+  'Catching up is a trap: it doubles tomorrow’s load and makes you quit. Forgiving the past and starting today costs nothing and keeps you going.',
+  'Progress is measured in practice-test scores, not boxes ticked. Look at the Scores tab. If the line is going up, the plan is working.',
+  'The LSAT does not know what week it is. It only knows what you can do on test day. Every session between now and then still counts the same.'
+];
+
+// ---------- helpers ----------
+function status(){
+  const t = today0();
+  const past = ALL.filter(x => new Date(x.id.slice(0,10)+'T00:00') < t);
+  const overdue = past.filter(x => !S.done[x.id] && !S.skip[x.id]);
+  return {overdue:overdue.length, past:past.length};
+}
+function streak(){
+  let n=0; const t=today0();
+  const byKey = Object.fromEntries(DAYS.map(d=>[d.k,d]));
+  const complete = d => d && d.tasks.length>0 && d.tasks.every(x=>S.done[x.id]||S.skip[x.id]) && d.tasks.some(x=>S.done[x.id]);
+  let d = complete(byKey[key(t)]) ? t : addDays(t,-1);
+  while (complete(byKey[key(d)])) { n++; d = addDays(d,-1); }
+  return n;
+}
+function render(){
+  const t = today0();
+  const done = ALL.filter(x=>S.done[x.id]).length;
+  const pct = Math.round(100*done/ALL.length);
+  const test = S.testDate ? new Date(S.testDate+'T00:00') : END;
+  const daysLeft = Math.max(0, Math.round((test - t)/864e5));
+  document.getElementById('s-days').textContent = daysLeft;
+  document.getElementById('s-pct').textContent = pct+'%';
+  document.getElementById('s-bar').style.width = pct+'%';
+  document.getElementById('s-streak').textContent = streak();
+  document.getElementById('s-pts').textContent = S.scores.length;
+  const st = status(); const pill = document.getElementById('s-status');
+  pill.className = 'pill ' + (st.overdue<=3?'good':st.overdue<=10?'warn':'crit');
+  pill.textContent = st.overdue<=3?'On track':st.overdue<=10?'A little behind':'Catch-up mode';
+  document.getElementById('greeting').textContent = (S.name?S.name+', this':'This')+' is a day-by-day plan built around your real problem: the clock. Check things off, get confetti, get told Koen loves you. Repeat until January.';
+  renderToday(); renderWeek(); renderMonth(); renderScores(); refreshBackup();
+}
+function taskList(tasks, dayKey){
+  const ul = document.createElement('ul'); ul.className='tasks';
+  tasks.forEach(x=>{
+    const li = document.createElement('li'); li.className='task'+(S.done[x.id]?' done':S.skip[x.id]?' skip':'');
+    const cb = document.createElement('input'); cb.type='checkbox'; cb.id='cb-'+x.id; cb.checked=!!S.done[x.id];
+    cb.addEventListener('change', ()=>toggle(x, cb.checked, dayKey));
+    const lab = document.createElement('label'); lab.htmlFor=cb.id; lab.textContent=x.t;
+    const m = document.createElement('span'); m.className='min'; m.textContent = x.m?x.m+' min':'';
+    li.append(cb,lab,m); ul.append(li);
+  });
+  return ul;
+}
+function dayCard(d, isToday){
+  const c = document.createElement('div'); c.className='card';
+  const h = document.createElement('div'); h.className='day-head'+(isToday?' today':'');
+  const tot = d.tasks.reduce((a,x)=>a+x.m,0);
+  h.innerHTML = `<span class="date">${isToday?'Today · ':''}${fmt(d.date)}</span><span class="meta">${d.tasks.length?tot+' min':'rest'}</span>`;
+  c.append(h, taskList(d.tasks, d.k));
+  return c;
+}
+function renderToday(){
+  const v = document.getElementById('view-today'); v.innerHTML='';
+  const t = today0(); const k = key(t);
+  const st = status();
+  if (st.overdue > 10) {
+    const box = document.createElement('div'); box.className='catchup';
+    box.innerHTML = `<h2>Catch-up mode (this is fine)</h2>
+      <p class="quote">${PEP[Math.floor(Math.random()*PEP.length)]}</p>
+      <p>You have <b>${st.overdue}</b> unchecked items in the past. Do not try to do them. Here is the re-route:</p>
+      <ol>
+        <li>Tap <b>Forgive the past</b>. Everything overdue gets marked skipped, the streak resets, nobody is mad.</li>
+        <li>Do today’s list only. If today is a rest day, do one timed LR section and review it.</li>
+        <li>Keep every Saturday practice test from here on. Those are the non-negotiables. Everything else is a bonus.</li>
+      </ol>
+      <div class="row"><button class="btn joy" id="btn-forgive">Forgive the past</button></div>`;
+    v.append(box);
+    box.querySelector('#btn-forgive').addEventListener('click', ()=>{
+      ALL.forEach(x=>{ if (new Date(x.id.slice(0,10)+'T00:00') < t && !S.done[x.id]) S.skip[x.id]=true; });
+      save(); render(); bigMoment('Past forgiven. Fresh start. Koen loves you.');
+    });
+  } else if (st.overdue > 3) {
+    const box = document.createElement('div'); box.className='catchup';
+    box.innerHTML = `<h2>A little behind. Not a problem.</h2><p class="quote">${PEP[Math.floor(Math.random()*PEP.length)]}</p><p>${st.overdue} items slipped. Skip them unless one is a practice test. Do today.</p>`;
+    v.append(box);
+  }
+  const d = DAYS.find(x=>x.k===k);
+  if (!d) {
+    const c = document.createElement('div'); c.className='card';
+    c.innerHTML = t < START ? `<h2>Plan starts ${fmt(START)}</h2><p class="sub">Read the pacing rules in Setup and get some sleep.</p>`
+                            : `<h2>The plan is over.</h2><p class="sub">Either you took the test or you are reading this from the future. Either way: Koen loves you.</p>`;
+    v.append(c); return;
+  }
+  const w = document.createElement('div'); w.className='card';
+  const ph = PHASES[d.week<=3?0:d.week<=8?1:d.week<=12?2:3];
+  w.innerHTML = `<span class="eyebrow">Week ${d.week} · Phase ${ph.n}: ${ph.name}</span><div class="week-goal"><b>This week</b><p>${WEEK_GOALS[d.week]}</p></div>`;
+  v.append(w, dayCard(d,true));
+  const nxt = DAYS.find(x=>x.date > t);
+  if (nxt && nxt.tasks.length) { const n = document.createElement('div'); n.className='small'; n.textContent='Tomorrow: '+nxt.tasks.map(x=>x.t).join(' · '); v.append(n); }
+}
+let weekView = null;
+function renderWeek(){
+  const v = document.getElementById('view-week'); v.innerHTML='';
+  if (weekView===null) weekView = Math.min(14, Math.max(0, weekOf(today0())));
+  const nav = document.createElement('div'); nav.className='nav';
+  nav.innerHTML = `<button class="btn" id="wk-prev" ${weekView<=0?'disabled':''}>← Week ${weekView-1}</button><span class="eyebrow">Week ${weekView}</span><button class="btn" id="wk-next" ${weekView>=14?'disabled':''}>Week ${weekView+1} →</button>`;
+  v.append(nav);
+  nav.querySelector('#wk-prev').addEventListener('click',()=>{weekView--;renderWeek();});
+  nav.querySelector('#wk-next').addEventListener('click',()=>{weekView++;renderWeek();});
+  const g = document.createElement('div'); g.className='card';
+  const ph = PHASES[weekView<=3?0:weekView<=8?1:weekView<=12?2:3];
+  g.innerHTML = `<span class="eyebrow">Phase ${ph.n}: ${ph.name}</span><div class="week-goal"><b>Goal</b><p>${WEEK_GOALS[weekView]}</p></div>`;
+  v.append(g);
+  const tk = key(today0());
+  DAYS.filter(d=>d.week===weekView).forEach(d=>v.append(dayCard(d, d.k===tk)));
+}
+function renderMonth(){
+  const v = document.getElementById('view-month'); v.innerHTML='';
+  const c = document.createElement('div'); c.className='card';
+  c.innerHTML = '<h2>Four phases</h2>' + PHASES.map(p=>`<div class="phase"><b>Phase ${p.n}: ${p.name}</b><span class="range">${p.range}</span><p>${p.goal}</p></div>`).join('');
+  v.append(c);
+  const m = document.createElement('div'); m.className='card';
+  m.innerHTML = '<h2>Month by month</h2>' + MONTHS.map((x,i)=>{
+    const mi = [9,10,11,0][i]; const yr = i===3?2027:2026;
+    const ts = ALL.filter(t=>{const d=new Date(t.id.slice(0,10)+'T00:00'); return d.getMonth()===mi && d.getFullYear()===yr;});
+    const dn = ts.filter(t=>S.done[t.id]).length; const pct = ts.length?Math.round(100*dn/ts.length):0;
+    return `<div class="week-goal"><b>${x.name} · target ${x.target}</b><p>${x.goal}</p><div class="bar"><i style="width:${pct}%"></i></div><span class="small">${dn} of ${ts.length} items done (${pct}%)</span></div>`;
+  }).join('');
+  v.append(m);
+  const w = document.createElement('div'); w.className='card';
+  w.innerHTML = '<h2>Week by week</h2>' + Object.keys(WEEK_GOALS).map(k=>{
+    const ts = ALL.filter(t=>weekOf(new Date(t.id.slice(0,10)+'T00:00'))===+k); const dn = ts.filter(t=>S.done[t.id]).length;
+    const full = ts.length && dn===ts.length;
+    return `<p><b>W${k}</b> ${full?'✅ ':''}<span class="small">${dn}/${ts.length}</span> · ${WEEK_GOALS[k]}</p>`;
+  }).join('');
+  v.append(w);
+}
+function renderScores(){
+  const v = document.getElementById('view-scores'); v.innerHTML='';
+  const c = document.createElement('div'); c.className='card';
+  c.innerHTML = `<h2>Log a practice test</h2>
+    <div class="row">
+      <label class="field">Date<input type="date" id="sc-date" value="${key(today0())}"></label>
+      <label class="field">Score<input type="number" id="sc-score" min="120" max="180" placeholder="170"></label>
+      <label class="field">Blanks (all sections)<input type="number" id="sc-blank" min="0" max="40" placeholder="0"></label>
+    </div>
+    <div class="row"><button class="btn primary" id="sc-add">Add score</button></div>`;
+  v.append(c);
+  c.querySelector('#sc-add').addEventListener('click',()=>{
+    const sc = +c.querySelector('#sc-score').value; if (!(sc>=120&&sc<=180)) { toast('Score needs to be 120–180'); return; }
+    S.scores.push({d:c.querySelector('#sc-date').value, s:sc, b:+c.querySelector('#sc-blank').value||0});
+    S.scores.sort((a,b)=>a.d<b.d?-1:1); save(); render();
+    if (sc>=175) bigMoment(sc+'! That is the number. Koen loves you so much.');
+    else if (sc>=170) bigMoment(sc+'. You are a 170s scorer now. Koen loves you.');
+    else { fire(1.2); toast('Logged. Koen loves you.'); }
+  });
+  const t = document.createElement('div'); t.className='card';
+  const best = S.scores.length?Math.max(...S.scores.map(x=>x.s)):null;
+  const last3 = S.scores.slice(-3); const avg = last3.length?Math.round(last3.reduce((a,x)=>a+x.s,0)/last3.length):null;
+  t.innerHTML = `<h2>Your tests</h2>
+    <div class="stats"><div class="stat"><b>${best??'–'}</b><span>best</span></div><div class="stat"><b>${avg??'–'}</b><span>avg of last 3</span></div><div class="stat"><b>${S.scores.length}</b><span>of 16 planned</span></div></div>
+    <div style="overflow-x:auto"><table><thead><tr><th>Date</th><th class="n">Score</th><th class="n">Blanks</th><th></th></tr></thead><tbody>${
+      S.scores.length ? S.scores.map((x,i)=>`<tr><td>${fmt(new Date(x.d+'T00:00'))}</td><td class="n"><b>${x.s}</b></td><td class="n">${x.b}</td><td class="n"><button class="btn" data-del="${i}" style="padding:4px 8px;font-size:12px">remove</button></td></tr>`).join('')
+      : '<tr><td colspan="4" class="small">No tests yet. The diagnostic on Oct 8 goes here.</td></tr>'}</tbody></table></div>`;
+  t.querySelectorAll('[data-del]').forEach(b=>b.addEventListener('click',()=>{S.scores.splice(+b.dataset.del,1);save();render();}));
+  v.append(t);
+  const g = document.createElement('div'); g.className='card';
+  g.innerHTML = `<h2>Target curve</h2><p class="small">Sixteen practice tests. Targets are the floor to aim for, not a verdict. A bad day below the line means nothing; three in a row means change something (usually: review harder, drill less).</p>
+    <div style="overflow-x:auto"><table><thead><tr><th>Test</th><th class="n">Target</th><th class="n">Actual</th></tr></thead><tbody>${PT_TARGETS.map((p,i)=>{
+      const a = S.scores[i]; const cls = a? (a.s>=p[1]?'hit':'miss'):'';
+      return `<tr><td>${p[0]}</td><td class="n">${p[1]}</td><td class="n ${cls}">${a?a.s:'–'}</td></tr>`;}).join('')}</tbody></table></div>`;
+  v.append(g);
+}
+
+// ---------- interactions ----------
+function toggle(x, on, dayKey){
+  if (on) { S.done[x.id]=true; delete S.skip[x.id]; } else delete S.done[x.id];
+  save();
+  if (on) {
+    toast(LOVE[Math.floor(Math.random()*LOVE.length)]);
+    fire(0.6);
+    const d = DAYS.find(q=>q.k===dayKey);
+    if (d && d.tasks.every(q=>S.done[q.id]||S.skip[q.id])) {
+      const wk = DAYS.filter(q=>q.week===d.week);
+      if (wk.every(q=>q.tasks.every(z=>S.done[z.id]||S.skip[z.id]))) bigMoment(`Week ${d.week} complete. Koen loves you enormously.`);
+      else bigMoment('Day done. Koen loves you.');
+    }
+  }
+  render();
+}
+let toastT;
+function toast(msg){ const el=document.getElementById('toast'); el.textContent=msg; el.classList.add('show'); clearTimeout(toastT); toastT=setTimeout(()=>el.classList.remove('show'),1800); }
+function fire(scale){
+  if (typeof confetti!=='function' || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  confetti({particleCount:Math.round(90*scale), spread:70, startVelocity:35, origin:{y:0.8}, colors:['#3447C7','#FF6A5B','#FFD166','#1F8A5B','#8C9BFF']});
+}
+function bigMoment(text){
+  const b=document.getElementById('big'); document.getElementById('big-text').textContent=text; b.hidden=false;
+  fire(2.5); setTimeout(()=>fire(2),350); setTimeout(()=>fire(2),700);
+  setTimeout(()=>{b.hidden=true;},2600);
+}
+document.querySelectorAll('.tabs button').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.setAttribute('aria-selected',x===b));
+  ['today','week','month','scores','setup'].forEach(n=>document.getElementById('view-'+n).hidden = n!==b.dataset.tab);
+  try{localStorage.setItem('road175-tab',b.dataset.tab);}catch(e){}
+}));
+try{ const tb=localStorage.getItem('road175-tab'); if(tb){ const btn=document.querySelector(`.tabs button[data-tab="${tb}"]`); if(btn) btn.click(); } }catch(e){}
+
+// setup
+const inName=document.getElementById('in-name'), inTest=document.getElementById('in-test');
+inName.value=S.name||''; inTest.value=S.testDate||'2027-01-14';
+inName.addEventListener('change',()=>{S.name=inName.value.trim();save();render();});
+inTest.addEventListener('change',()=>{S.testDate=inTest.value;save();render();});
+function refreshBackup(){ try{ document.getElementById('backup').value = btoa(unescape(encodeURIComponent(JSON.stringify(S)))); }catch(e){} }
+document.getElementById('btn-refresh').addEventListener('click',refreshBackup);
+document.getElementById('btn-copy').addEventListener('click',()=>{
+  const ta=document.getElementById('backup'); refreshBackup();
+  const ok=()=>toast('Copied. Paste it somewhere safe.');
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(ta.value).then(ok).catch(()=>{ta.select();toast('Select all + copy');});
+  else {ta.select();toast('Select all + copy');}
+});
+document.getElementById('btn-restore').addEventListener('click',()=>{
+  try{ const obj=JSON.parse(decodeURIComponent(escape(atob(document.getElementById('restore').value.trim())))); if(!obj||typeof obj!=='object') throw 0;
+    S=Object.assign({done:{},skip:{},scores:[],testDate:'2027-01-14',name:''},obj); save(); inName.value=S.name; inTest.value=S.testDate; render(); bigMoment('Restored. Koen loves you.'); }
+  catch(e){ toast('That code did not work. Check you pasted the whole thing.'); }
+});
+render();
+})();
+</script>
+
+<script>
+if ('serviceWorker' in navigator) { window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(()=>{}); }); }
+</script>
+</body>
+</html>

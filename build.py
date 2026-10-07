@@ -1,0 +1,82 @@
+# Builds index.html (standalone PWA) from page-body.html + manifest + service worker + icons.
+import os, re
+from PIL import Image, ImageDraw, ImageFont
+here = os.path.dirname(os.path.abspath(__file__))
+body = open(os.path.join(here, 'page-body.html'), encoding='utf-8').read()
+title = re.search(r'<title>(.*?)</title>', body).group(1)
+head = f'''<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#3447C7">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="{title}">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>:root{{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}}body{{margin:0;font:14px system-ui}}img{{max-width:100%}}[hidden]{{display:none!important}}</style>
+</head>
+<body>
+'''
+tail = '''
+<script>
+if ('serviceWorker' in navigator) { window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(()=>{}); }); }
+</script>
+</body>
+</html>
+'''
+open(os.path.join(here, 'index.html'), 'w', encoding='utf-8').write(head + body + tail)
+
+open(os.path.join(here, 'manifest.webmanifest'), 'w').write('''{
+  "name": "Road to 175",
+  "short_name": "Road to 175",
+  "description": "Day-by-day LSAT plan to the January test.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#F4F5FA",
+  "theme_color": "#3447C7",
+  "icons": [
+    {"src": "icon-192.png", "sizes": "192x192", "type": "image/png"},
+    {"src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"}
+  ]
+}
+''')
+
+open(os.path.join(here, 'sw.js'), 'w').write('''const VERSION = 'road175-v' + '%s';
+const SHELL = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png',
+  'https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.4/dist/confetti.browser.min.js'];
+self.addEventListener('install', e => { e.waitUntil(caches.open(VERSION).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())); });
+self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== VERSION).map(k => caches.delete(k)))).then(() => self.clients.claim())); });
+self.addEventListener('fetch', e => {
+  const req = e.request; if (req.method !== 'GET') return;
+  const isPage = req.mode === 'navigate' || req.url.endsWith('/index.html') || req.url.endsWith('/');
+  if (isPage) { // network first so updates land, cache if offline
+    e.respondWith(fetch(req).then(r => { const copy = r.clone(); caches.open(VERSION).then(c => c.put(req, copy)); return r; }).catch(() => caches.match(req).then(r => r || caches.match('./index.html'))));
+    return;
+  }
+  e.respondWith(caches.match(req).then(r => r || fetch(req).then(res => { const copy = res.clone(); caches.open(VERSION).then(c => c.put(req, copy)); return res; })));
+});
+''' % __import__('time').strftime('%Y%m%d%H%M'))
+
+def icon(size):
+    im = Image.new('RGBA', (size, size), (0,0,0,0))
+    d = ImageDraw.Draw(im)
+    d.rounded_rectangle([0,0,size-1,size-1], radius=int(size*0.22), fill=(52,71,199,255))
+    font = None
+    for p in ['/System/Library/Fonts/Supplemental/Arial Bold.ttf', '/System/Library/Fonts/Helvetica.ttc', '/Library/Fonts/Arial Bold.ttf']:
+        if os.path.exists(p):
+            try: font = ImageFont.truetype(p, int(size*0.42)); break
+            except Exception: pass
+    if font is None: font = ImageFont.load_default()
+    txt = '175'
+    bb = d.textbbox((0,0), txt, font=font)
+    w, h = bb[2]-bb[0], bb[3]-bb[1]
+    d.text(((size-w)/2-bb[0], (size-h)/2-bb[1]-size*0.02), txt, font=font, fill=(255,255,255,255))
+    # small coral check mark bar under the number
+    d.rounded_rectangle([size*0.32, size*0.74, size*0.68, size*0.80], radius=int(size*0.03), fill=(255,106,91,255))
+    im.save(os.path.join(here, f'icon-{size}.png'))
+icon(192); icon(512)
+print('built', title)
