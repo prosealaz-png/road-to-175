@@ -202,7 +202,7 @@ const REFRESHERS = [
 const bar = pct => { const n = Math.round(pct/10); return '▓'.repeat(n) + '░'.repeat(10-n) + ' ' + pct + '%'; };
 const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 const list = tasks => tasks.map(t => '• ' + esc(t.t) + (t.m ? ` <i>(${t.m} min)</i>` : '')).join('\n');
-const first = (p) => p.name ? p.name + ', ' : '';
+const greet = (p, text) => p.name ? `${p.name}, ${text}` : text.charAt(0).toUpperCase() + text.slice(1);
 
 function compose(slot, P, dayIndex) {
   const { fmt } = PLAN;
@@ -215,7 +215,7 @@ function compose(slot, P, dayIndex) {
     const head = `<b>${esc(fmt(t.date))}</b> · Week ${P.week}, Phase ${P.phase.n}: ${esc(P.phase.name)} · ${P.daysLeft} days to test`;
     const body = t.tasks.length ? `Today (${total} min):\n${list(t.tasks)}` : 'Today is a rest day. Rest is on the plan, not a break from it.';
     const ref = REFRESHERS[dayIndex % REFRESHERS.length];
-    return { title: `${first(P)}good morning. Brain on.`, message: `${head}\n\n${body}\n\n<b>This week:</b> ${esc(P.weekGoal)}\n\n<b>Refresher:</b> ${esc(ref)}\n\nKoen loves you.` };
+    return { title: greet(P, 'good morning. Brain on.'), message: `${head}\n\n${body}\n\n<b>This week:</b> ${esc(P.weekGoal)}\n\n<b>Refresher:</b> ${esc(ref)}\n\nKoen loves you.` };
   }
   if (slot === 'midday') {
     const stats = `${bar(P.pct)} of the plan\nThis week ${P.wkDone}/${P.wkTotal} · streak ${P.streak} day${P.streak===1?'':'s'} · ${P.daysLeft} days to test` + (P.last ? ` · last PT ${P.last}` : '');
@@ -230,7 +230,7 @@ function compose(slot, P, dayIndex) {
   let body;
   if (!t.tasks.length) body = 'Rest day, so nothing to close out.';
   else if (!P.todayOpen.length) body = `<b>Today: ${P.todayDone}/${t.tasks.length} done.</b> Everything. Go rest, that is part of the plan.`;
-  else body = `<b>Today: ${P.todayDone}/${t.tasks.length} done.</b> Still open:\n${list(P.todayOpen)}\nIf you do only one, do the timed one. Twenty minutes beats zero.`;
+  else { const timed = P.todayOpen.some(x => /section|timed|practice test|questions in \d+|min\b/i.test(x.t) && x.m >= 30); body = `<b>Today: ${P.todayDone}/${t.tasks.length} done.</b> Still open:\n${list(P.todayOpen)}` + (timed ? '\nIf you do only one, do the timed one. Twenty minutes beats zero.' : '\nSmall ones. Knock them out and keep the streak.'); }
   const tm = P.tomorrow ? (P.tomorrow.tasks.length ? `<b>Tomorrow (${P.tomorrow.tasks.reduce((a,x)=>a+x.m,0)} min):</b>\n${list(P.tomorrow.tasks.slice(0,3))}` : '<b>Tomorrow:</b> rest day.') : '';
   return { title: "Tonight's check-in", message: `${body}\n\n${tm}\n\nKoen loves you. Sleep well.` };
 }
@@ -247,9 +247,18 @@ export default {
   async fetch(req, env) {
     const h = cors(req.headers.get('Origin') || '');
     if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: h });
-    const m = new URL(req.url).pathname.match(/^\/v1\/([a-f0-9]{64})(\/notify)?$/);
+    const url = new URL(req.url);
+    const m = url.pathname.match(/^\/v1\/([a-f0-9]{64})(\/notify|\/preview)?$/);
     if (!m) return json({ error: 'not found' }, 404, h);
     const key = m[1];
+    if (m[2] === '/preview') { // what each slot would say right now (nothing is sent)
+      if (req.method !== 'GET') return json({ error: 'method' }, 405, h);
+      const blob = await env.STATE.get('s:' + key, 'json');
+      const now = azNow(); const fake = url.searchParams.get('date'); if (/^\d{4}-\d{2}-\d{2}$/.test(fake||'')) now.dateKey = fake; const dayIndex = Math.max(0, Math.round((dateOfKey(now.dateKey) - PLAN.START) / 864e5));
+      const P = progress(blob ? blob.state : {}, now.dateKey);
+      const out = {}; for (const slot of ['morning','midday','evening']) out[slot] = compose(slot, P, dayIndex);
+      return json({ az: now, status: P.status, overdue: P.overdue, ahead: P.ahead, pct: P.pct, messages: out }, 200, h);
+    }
     if (m[2]) { // ---- notify config ----
       const nk = 'n:' + key;
       if (req.method === 'GET') { const v = await env.STATE.get(nk, 'json'); return v ? json({ user: v.user, times: v.times }, 200, h) : json({ error: 'empty' }, 404, h); }
