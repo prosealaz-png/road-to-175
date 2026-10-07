@@ -154,6 +154,18 @@ summary{cursor:pointer;font:700 14px var(--display)}
     <p class="small" id="sync-detail"></p>
   </div>
   <div class="card">
+    <h2>Phone notifications</h2>
+    <p class="small">Three a day, Arizona time: a morning kick-off with today's list, a midday progress check, and an evening check-in with tomorrow's preview. They come through the <b>Pushover</b> app. Install it, sign up, copy your <b>user key</b> from its home screen, paste it here. Sync has to be on first (that's where the messages get their facts).</p>
+    <label class="field">Pushover user key<input type="text" id="in-po" autocomplete="off" spellcheck="false" placeholder="30 letters and numbers"></label>
+    <div class="row">
+      <label class="field">Morning<input type="time" id="t-morning" step="900" value="07:00"></label>
+      <label class="field">Midday<input type="time" id="t-midday" step="900" value="13:00"></label>
+      <label class="field">Evening<input type="time" id="t-evening" step="900" value="20:30"></label>
+    </div>
+    <div class="row"><button class="btn primary" id="btn-notif-on">Turn on notifications</button><button class="btn" id="btn-notif-off" hidden>Turn off notifications</button></div>
+    <p class="small" id="notif-detail">Notifications are off.</p>
+  </div>
+  <div class="card">
     <h2>Backup your progress</h2>
     <p class="small"><b>Put it on your home screen:</b> on iPhone open this in Safari, tap Share, then “Add to Home Screen”. On Android, Chrome menu → “Add to Home screen”. It then opens like an app and works offline.</p>
     <p class="small">A manual backup, in case you would rather not use sync. Copy this code every week or so and paste it into Notes. If the browser forgets, paste it back here and tap Restore.</p>
@@ -198,8 +210,9 @@ summary{cursor:pointer;font:700 14px var(--display)}
 
 <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.4/dist/confetti.browser.min.js"></script>
 <script>
-(function(){
-// ---------- dates ----------
+// Shared plan data: used by the page (inlined by build.py) and by the sync Worker (concatenated by build.py).
+// Pure data + functions, no DOM, no timezone assumptions beyond 'dates are calendar days'.
+globalThis.PLAN = (function(){
 const START = new Date(2026,9,7);               // Wed Oct 7 2026 (Week 0)
 const W1 = new Date(2026,9,12);                 // Mon Oct 12 2026 (Week 1)
 const END = new Date(2027,0,14);                // Thu Jan 14 2027 (test)
@@ -208,7 +221,6 @@ const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','
 const key = d => d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
 const addDays = (d,n) => { const x=new Date(d); x.setDate(x.getDate()+n); return x; };
 const fmt = d => DOW[(d.getDay()+6)%7]+' '+MON[d.getMonth()]+' '+d.getDate();
-const today0 = () => { const t=new Date(); t.setHours(0,0,0,0); return t; };
 function weekOf(d){ if (d < W1) return 0; return Math.floor((d - W1)/864e5/7)+1; }
 function dowOf(d){ return (d.getDay()+6)%7; }
 
@@ -329,6 +341,16 @@ for (let d = new Date(START); d <= END; d = addDays(d,1)) {
   DAYS.push({date:new Date(d), k:key(d), week:weekOf(d), tasks:ts});
 }
 const ALL = DAYS.flatMap(x=>x.tasks);
+
+return {START,W1,END,DOW,MON,key,addDays,fmt,weekOf,dowOf,PHASES,WEEK_GOALS,MONTHS,PT_TARGETS,tasksFor,DAYS,ALL};
+})();
+
+</script>
+<script>
+(function(){
+// ---------- dates + plan (from plan.js) ----------
+const {START,W1,END,DOW,MON,key,addDays,fmt,weekOf,dowOf,PHASES,WEEK_GOALS,MONTHS,PT_TARGETS,tasksFor,DAYS,ALL} = PLAN;
+const today0 = () => { const t=new Date(); t.setHours(0,0,0,0); return t; };
 
 // ---------- state ----------
 const SYNC_URL = 'https://road175-sync.prosealaz.workers.dev';
@@ -687,7 +709,26 @@ document.getElementById('btn-sync-on').addEventListener('click', async ()=>{
 document.getElementById('btn-sync-off').addEventListener('click', ()=>{
   syncKey=null; try{localStorage.removeItem('road175-sync');}catch(e){} lastSync=0; setSync('off','Sync is off. Progress stays on this device only.'); toast('Sync turned off');
 });
-render(); setSync(syncState); pull();
+// ---------- notifications ----------
+const inPo=document.getElementById('in-po'), tIn={morning:document.getElementById('t-morning'), midday:document.getElementById('t-midday'), evening:document.getElementById('t-evening')};
+const nd=document.getElementById('notif-detail'), nOn=document.getElementById('btn-notif-on'), nOff=document.getElementById('btn-notif-off');
+function showNotif(cfg, msg){ const on=!!cfg; nOn.hidden=on; nOff.hidden=!on; if(cfg){ inPo.value=cfg.user||''; for(const k in tIn) if(cfg.times&&cfg.times[k]) tIn[k].value=cfg.times[k]; }
+  nd.textContent = msg || (on ? `Notifications are on: ${cfg.times.morning}, ${cfg.times.midday} and ${cfg.times.evening}, Arizona time.` : 'Notifications are off.'); }
+async function loadNotif(){ if(!syncKey){ showNotif(null,'Turn on sync first, then come back here.'); return; }
+  try{ const r=await fetch(SYNC_URL+'/v1/'+syncKey+'/notify',{cache:'no-store'}); showNotif(r.ok ? await r.json() : null); }catch(e){ showNotif(null,'Could not reach the server. Try again when online.'); } }
+nOn.addEventListener('click', async ()=>{
+  if(!syncKey){ toast('Turn on sync first'); return; }
+  const user=inPo.value.trim(); if(!/^[A-Za-z0-9]{30}$/.test(user)){ toast('That key should be 30 letters and numbers'); return; }
+  nd.textContent='Sending a test message to your phone…';
+  try{ const r=await fetch(SYNC_URL+'/v1/'+syncKey+'/notify',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({user, times:{morning:tIn.morning.value, midday:tIn.midday.value, evening:tIn.evening.value}})});
+    const j=await r.json(); if(!r.ok){ showNotif(null, j.error||'Something went wrong.'); return; }
+    showNotif({user, times:j.times}); bigMoment('Check your phone. Koen loves you.'); }
+  catch(e){ showNotif(null,'Could not reach the server. Try again when online.'); }
+});
+nOff.addEventListener('click', async ()=>{ try{ await fetch(SYNC_URL+'/v1/'+syncKey+'/notify',{method:'DELETE'}); }catch(e){} showNotif(null,'Notifications are off.'); toast('Notifications off'); });
+document.getElementById('btn-sync-on').addEventListener('click', ()=>setTimeout(loadNotif, 4000));
+document.getElementById('btn-sync-off').addEventListener('click', ()=>showNotif(null,'Turn on sync first, then come back here.'));
+render(); setSync(syncState); pull(); loadNotif();
 })();
 </script>
 
