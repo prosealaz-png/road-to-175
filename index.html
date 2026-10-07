@@ -331,7 +331,7 @@ for (let d = new Date(START); d <= END; d = addDays(d,1)) {
 const ALL = DAYS.flatMap(x=>x.tasks);
 
 // ---------- state ----------
-const SYNC_URL = 'https://road175-sync.REPLACE_SUBDOMAIN.workers.dev';
+const SYNC_URL = 'https://road175-sync.prosealaz.workers.dev';
 let S = {done:{}, skip:{}, scores:[], testDate:'2027-01-14', name:'', updatedAt:0};
 try { const raw = localStorage.getItem('road175'); if (raw) S = Object.assign(S, JSON.parse(raw)); } catch(e){}
 function save(){ S.updatedAt = Date.now(); try { localStorage.setItem('road175', JSON.stringify(S)); } catch(e){} schedulePush(); }
